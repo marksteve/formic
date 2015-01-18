@@ -1,0 +1,15 @@
+{
+	"ImportPath": "github.com/marksteve/go-submit",
+	"GoVersion": "go1.4",
+	"Deps": [
+		{
+			"ImportPath": "github.com/unrolled/render",
+			"Rev": "bdfac4a8df10cc9dc03ee14ba2f655137fd70378"
+		},
+		{
+			"ImportPath": "github.com/zenazn/goji",
+			"Comment": "v0.8.3",
+			"Rev": "dcb9598cbbcfcc10d2c1ee1e66958e54a2c84b52"
+		}
+	]
+}

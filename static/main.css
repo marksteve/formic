@@ -1,0 +1,59 @@
+body {
+  font-family: PT Sans, sans-serif;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: Aleo, serif;
+}
+
+.index {
+  text-align: center;
+  border: 1px solid;
+  width: 20em;
+  margin: 3em auto;
+  padding: 3em 0;
+  border-radius: 5px;
+}
+
+.admin {
+  margin: 3em 0;
+}
+
+.admin h1 {
+  border-bottom: 2px solid;
+}
+
+.admin h1 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.admin ul {
+  list-style: none;
+  border-top: 1px solid;
+}
+
+.admin li {
+  border-bottom: 1px solid;
+  padding: 1em;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.admin li .name {
+  line-height: 38px;
+}
+
+.admin li .name a {
+  color: inherit;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.admin li .actions {
+  text-align: right;
+}
+
+.admin li .actions .button {
+  margin: 0;
+}

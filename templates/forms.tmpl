@@ -1,0 +1,32 @@
+<div class="admin">
+  <div class="container">
+    <h1><a href="/admin/">Submit</a></h1>
+    <div class="row">
+      <div class="eight columns">
+        <h2>Forms</h2>
+        <ul>
+        {{range .Forms}}
+          <li class="row">
+            <div class="name six columns">
+              <a href="/admin/{{.Id}}">{{.Name}}</a>
+            </div>
+            <div class="actions six columns">
+              <a class="button" href="/admin/{{.Id}}">Delete</a>
+            </div>
+          </li>
+        {{end}}
+        </ul>
+      </div>
+      <div class="four columns">
+        <h2>New Form</h2>
+        <form action="" method="post">
+          <p>
+            <input class="u-full-width" type="text" placeholder="Form Name">
+            <button class="button-primary" type="submit">
+              Create Form
+            </button>
+          </p>
+        </form>
+      </div>
+  </div>
+</div>

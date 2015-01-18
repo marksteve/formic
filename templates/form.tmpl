@@ -1,0 +1,29 @@
+<div class="admin">
+  <div class="container">
+    <h1><a href="/admin/">Submit</a></h1>
+    <h2>{{.Name}}</h2>
+    <pre><code>&lt;form action=&quot;{{.URL}}&quot; method=&quot;post&quot;&gt;
+  &lt;p&gt;&lt;input type=&quot;text&quot; name=&quot;name&quot; placeholder=&quot;Name&quot;&gt;&lt;/p&gt;
+  &lt;p&gt;&lt;input type=&quot;email&quot; name=&quot;email&quot; placeholder=&quot;Email&quot;&gt;&lt;/p&gt;
+&lt;/form&gt;
+</code></pre>
+    <table class="u-full-width">
+      <thead>
+        <tr>
+        {{range $name, $_ := index .Entries 0}}
+          <th>{{$name}}</th>
+        {{end}}
+        </tr>
+      </thead>
+      <tbody>
+      {{range .Entries}}
+        <tr>
+        {{range $_, $value := .}}
+          <td>{{$value}}</td>
+        {{end}}
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
