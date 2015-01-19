@@ -1,15 +1,33 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/dustin/randbo"
+	"github.com/garyburd/redigo/redis"
 	"github.com/unrolled/render"
 	"github.com/zenazn/goji"
 	"github.com/zenazn/goji/web"
 	"github.com/zenazn/goji/web/middleware"
-	"net/http"
 )
 
+type Form struct {
+	Id   string
+	Name string
+}
+
 var r *render.Render
+var rp *redis.Pool
+
+func key(args ...string) string {
+	args = append([]string{"submit"}, args...)
+	return strings.Join(args, ":")
+}
 
 func index(c web.C, w http.ResponseWriter, req *http.Request) {
 	r.HTML(w, http.StatusOK, "index", nil)
@@ -26,36 +44,108 @@ func submit(c web.C, w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func forms(c web.C, w http.ResponseWriter, req *http.Request) {
+func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
+	var (
+		forms []Form
+		err   error
+	)
+	rc := rp.Get()
+	fids, err := redis.Strings(rc.Do(
+		"SMEMBERS",
+		key("forms"),
+	))
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for _, fid := range fids {
+		var form Form
+		v, err := redis.Values(
+			rc.Do("HGETALL", key("form", fid)),
+		)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		redis.ScanStruct(v, &form)
+		forms = append(forms, form)
+	}
+
 	r.HTML(w, http.StatusOK, "forms", map[string]interface{}{
-		"Forms": []map[string]string{
-			map[string]string{
-				"Name": "Test Form",
-				"Id":   "asdf123",
-			},
-			map[string]string{
-				"Name": "Test Form 2",
-				"Id":   "asdf1234",
-			},
-		},
+		"Forms": forms,
 	})
 }
 
-func newForm(c web.C, w http.ResponseWriter, req *http.Request) {
-	url := fmt.Sprintf("/admin/%s", 1)
-	http.Redirect(w, req, url, http.StatusTemporaryRedirect)
+func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
+	var (
+		formName string
+		err      error
+	)
+	rc := rp.Get()
+
+	defer func() {
+		if err == nil {
+			p := make([]byte, 8)
+			randbo.New().Read(p)
+			id := fmt.Sprintf("%x", p)
+
+			rc.Do("HMSET", key("form", id),
+				"Id", id,
+				"Name", formName,
+			)
+			rc.Do("SADD", key("forms"), id)
+
+			url := fmt.Sprintf("/admin/%s", id)
+			http.Redirect(w, req, url, http.StatusTemporaryRedirect)
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+	}()
+
+	if err = req.ParseForm(); err != nil {
+		return
+	}
+
+	formName = req.PostForm.Get("name")
+	if formName == "" {
+		err = errors.New("Form name can't be empty")
+		return
+	}
 }
 
-func form(c web.C, w http.ResponseWriter, req *http.Request) {
+func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
+	var (
+		form Form
+		err  error
+	)
+	rc := rp.Get()
+
+	v, err := redis.Values(
+		rc.Do("HGETALL", key("form", c.URLParams["id"])),
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	redis.ScanStruct(v, &form)
+
+	if form == (Form{}) {
+		http.Error(w, "Form doesn't exist", http.StatusNotFound)
+		return
+	}
+
 	formURL := req.URL
 	formURL.Scheme = "http"
 	if req.TLS != nil {
 		formURL.Scheme += "s"
 	}
 	formURL.Host = req.Host
-	formURL.Path = fmt.Sprintf("/s/%s", "asdf123")
+	formURL.Path = fmt.Sprintf("/s/%s", form.Id)
+
 	r.HTML(w, http.StatusOK, "form", map[string]interface{}{
-		"Name": "Test Form",
+		"Name": form.Name,
 		"URL":  formURL.String(),
 		"Entries": []map[string]string{
 			map[string]string{
@@ -75,6 +165,28 @@ func init() {
 		Layout:        "layout",
 		IsDevelopment: true,
 	})
+	rh := os.Getenv("REDIS_HOST")
+	if rh == "" {
+		rh = "localhost"
+	}
+	rp = &redis.Pool{
+		MaxIdle:     3,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", fmt.Sprintf(
+				"%s:6379",
+				rh,
+			))
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		},
+		TestOnBorrow: func(c redis.Conn, t time.Time) error {
+			_, err := c.Do("PING")
+			return err
+		},
+	}
 }
 
 func main() {
@@ -83,9 +195,9 @@ func main() {
 
 	admin := web.New()
 	admin.Use(middleware.SubRouter)
-	admin.Get("/", forms)
-	admin.Post("/", newForm)
-	admin.Handle("/:id", form)
+	admin.Get("/", showForms)
+	admin.Post("/", createForm)
+	admin.Handle("/:id", showForm)
 	goji.Handle("/admin/*", admin)
 
 	goji.Get("/static/lib/*", http.StripPrefix(
