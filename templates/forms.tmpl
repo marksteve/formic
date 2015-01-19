@@ -1,6 +1,9 @@
 <div class="admin">
   <div class="container-fluid">
-    <h1>Submit</h1>
+    <div class="u-full-width u-cf">
+      <a href="/logout" class="u-pull-right button">Logout</a>
+      <h1>Submit</h1>
+    </div>
     <div class="row">
       <div class="eight columns">
         <h2>Forms</h2>
@@ -8,10 +11,10 @@
         {{range .Forms}}
           <li class="row">
             <div class="name six columns">
-              <a href="/admin/{{.Id}}">{{.Name}}</a>
+              <a href="/admin/{{.ID}}">{{.Name}}</a>
             </div>
             <div class="actions six columns">
-              <a class="button" href="/admin/{{.Id}}">Delete</a>
+              <a class="button" href="/admin/{{.ID}}">Delete</a>
             </div>
           </li>
         {{end}}

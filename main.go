@@ -4,33 +4,46 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/antonholmquist/jason"
+	"github.com/drone/config"
 	"github.com/dustin/randbo"
 	"github.com/garyburd/redigo/redis"
 	"github.com/unrolled/render"
 	"github.com/zenazn/goji"
 	"github.com/zenazn/goji/web"
 	"github.com/zenazn/goji/web/middleware"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"gopkg.in/boj/redistore.v1"
 )
 
 type Form struct {
-	Id          string
+	ID          string
 	Name        string
 	RedirectURL string
 }
 
-var r *render.Render
-var rp *redis.Pool
+var (
+	r                   *render.Render
+	rp                  *redis.Pool
+	rs                  *redistore.RediStore
+	sessionSecret       = config.String("session-secret", "")
+	googleClientID      = config.String("google-client-id", "")
+	googleClientSecret  = config.String("google-client-secret", "")
+	googleAllowedEmails = config.String("google-allowed-emails", "")
+)
 
 func key(args ...string) string {
 	args = append([]string{"submit"}, args...)
 	return strings.Join(args, ":")
 }
 
-func genId() string {
+func genID() string {
 	p := make([]byte, 8)
 	randbo.New().Read(p)
 	return fmt.Sprintf("%x", p)
@@ -47,8 +60,123 @@ func getForm(rc redis.Conn, id string, form *Form) error {
 	return nil
 }
 
+func createURL(req *http.Request) url.URL {
+	var url_ *url.URL
+	url_ = req.URL
+	url_.Scheme = "http"
+	if req.TLS != nil {
+		url_.Scheme += "s"
+	}
+	url_.Host = req.Host
+	url_.RawQuery = ""
+	url_.Fragment = ""
+	return *url_
+}
+
+func loginGoogleConfig(req *http.Request) *oauth2.Config {
+	redirectURL := createURL(req)
+	redirectURL.Path = "/oauth2callback"
+	fmt.Println(redirectURL.String())
+	return &oauth2.Config{
+		ClientID:     *googleClientID,
+		ClientSecret: *googleClientSecret,
+		RedirectURL:  redirectURL.String(),
+		Scopes:       []string{"email"},
+		Endpoint:     google.Endpoint,
+	}
+}
+
+func requireLogin(c *web.C, h http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, req *http.Request) {
+		session, err := rs.Get(req, "session")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, loggedIn := session.Values["loggedIn"]
+
+		if !loggedIn {
+			gc := loginGoogleConfig(req)
+			authURL := gc.AuthCodeURL("")
+			http.Redirect(w, req, authURL, http.StatusFound)
+			return
+		}
+
+		h.ServeHTTP(w, req)
+	}
+	return http.HandlerFunc(fn)
+}
+
 func index(c web.C, w http.ResponseWriter, req *http.Request) {
 	r.HTML(w, http.StatusOK, "index", nil)
+}
+
+func login(c web.C, w http.ResponseWriter, req *http.Request) {
+	var err error
+
+	defer func() {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}()
+
+	code := req.URL.Query().Get("code")
+	if code == "" {
+		http.Error(w, "", http.StatusForbidden)
+		return
+	}
+
+	gc := loginGoogleConfig(req)
+	tok, err := gc.Exchange(oauth2.NoContext, code)
+	if err != nil {
+		return
+	}
+
+	cli := gc.Client(oauth2.NoContext, tok)
+	resp, err := cli.Get("https://www.googleapis.com/plus/v1/people/me")
+	if err != nil {
+		return
+	}
+
+	data, err := jason.NewObjectFromReader(resp.Body)
+	if err != nil {
+		return
+	}
+
+	emails, err := data.GetObjectArray("emails")
+	if err != nil {
+		return
+	}
+
+	var email string
+	for _, e := range emails {
+		email, err = e.GetString("value")
+		if err != nil {
+			return
+		}
+		break
+	}
+
+	allowedEmails := strings.Split(*googleAllowedEmails, ",")
+	for _, allowedEmail := range allowedEmails {
+		if email == allowedEmail {
+			session, err := rs.Get(req, "session")
+			if err != nil {
+				return
+			}
+
+			session.Values["loggedIn"] = true
+			err = session.Save(req, w)
+			if err != nil {
+				return
+			}
+
+			http.Redirect(w, req, "/admin/", http.StatusFound)
+		}
+	}
+
+	http.Redirect(w, req, "/", http.StatusFound)
 }
 
 func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
@@ -58,13 +186,18 @@ func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 	)
 	rc := rp.Get()
 
+	defer func() {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}()
+
 	fids, err := redis.Strings(rc.Do(
 		"SMEMBERS",
 		key("forms"),
 	))
-
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -72,7 +205,6 @@ func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 		var form Form
 		err = getForm(rc, fid, &form)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		forms = append(forms, form)
@@ -93,10 +225,10 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	defer func() {
 		if err == nil {
-			id := genId()
+			id := genID()
 
 			rc.Do("HMSET", key("form", id),
-				"Id", id,
+				"ID", id,
 				"Name", formName,
 				"RedirectURL", redirectURL,
 			)
@@ -127,6 +259,30 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func logout(c web.C, w http.ResponseWriter, req *http.Request) {
+	var err error
+
+	defer func() {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}()
+
+	session, err := rs.Get(req, "session")
+	if err != nil {
+		return
+	}
+
+	session.Options.MaxAge = -1
+	err = session.Save(req, w)
+	if err != nil {
+		return
+	}
+
+	http.Redirect(w, req, "/", http.StatusFound)
+}
+
 func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	var (
 		form    Form
@@ -135,9 +291,15 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	)
 	rc := rp.Get()
 
+	defer func() {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}()
+
 	err = getForm(rc, c.URLParams["id"], &form)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -146,40 +308,32 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	formURL := req.URL
-	formURL.Scheme = "http"
-	if req.TLS != nil {
-		formURL.Scheme += "s"
-	}
-	formURL.Host = req.Host
-	formURL.Path = fmt.Sprintf("/s/%s", form.Id)
+	formURL := createURL(req)
+	formURL.Path = fmt.Sprintf("/s/%s", form.ID)
 
 	fields, err := redis.Strings(rc.Do(
 		"SMEMBERS",
-		key("form", form.Id, "fields"),
+		key("form", form.ID, "fields"),
 	))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	eids, err := redis.Strings(rc.Do(
 		"SMEMBERS",
-		key("form", form.Id, "entries"),
+		key("form", form.ID, "entries"),
 	))
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	for _, eid := range eids {
 		v, err := redis.Strings(
-			rc.Do("HGETALL", key("form", form.Id, "entry", eid)),
+			rc.Do("HGETALL", key("form", form.ID, "entry", eid)),
 		)
 
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -206,9 +360,15 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 	)
 	rc := rp.Get()
 
+	defer func() {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}()
+
 	err = getForm(rc, c.URLParams["id"], &form)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -222,16 +382,16 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	eid := genId()
+	eid := genID()
 
-	entry := []interface{}{key("form", form.Id, "entry", eid)}
+	entry := []interface{}{key("form", form.ID, "entry", eid)}
 	for field := range req.PostForm {
 		entry = append(entry, field, req.PostForm.Get(field))
-		rc.Do("SADD", key("form", form.Id, "fields"), field)
+		rc.Do("SADD", key("form", form.ID, "fields"), field)
 	}
 	rc.Do("HMSET", entry...)
 
-	rc.Do("SADD", key("form", form.Id, "entries"), eid)
+	rc.Do("SADD", key("form", form.ID, "entries"), eid)
 
 	http.Redirect(w, req, form.RedirectURL, http.StatusFound)
 }
@@ -263,18 +423,26 @@ func init() {
 			return err
 		},
 	}
+	rs, _ = redistore.NewRediStoreWithPool(rp, []byte(*sessionSecret))
 }
 
 func main() {
+	config.SetPrefix("SUBMIT_")
+	config.Parse("submit.conf")
+
 	goji.Get("/", index)
-	goji.Post("/s/:id", submitEntry)
+	goji.Get("/oauth2callback", login)
+	goji.Get("/logout", logout)
 
 	admin := web.New()
 	admin.Use(middleware.SubRouter)
+	admin.Use(requireLogin)
 	admin.Get("/", showForms)
 	admin.Post("/", createForm)
 	admin.Get("/:id", showForm)
 	goji.Handle("/admin/*", admin)
+
+	goji.Post("/s/:id", submitEntry)
 
 	goji.Get("/static/lib/*", http.StripPrefix(
 		"/static/lib/",

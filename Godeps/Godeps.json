@@ -3,6 +3,15 @@
 	"GoVersion": "go1.4.1",
 	"Deps": [
 		{
+			"ImportPath": "github.com/antonholmquist/jason",
+			"Comment": "v1.0.0-2-g68e75fc",
+			"Rev": "68e75fc5edb0504b2d80699f01cd7e6df7f555aa"
+		},
+		{
+			"ImportPath": "github.com/drone/config",
+			"Rev": "07959646128e2907af00753ed0278692ccc19b43"
+		},
+		{
 			"ImportPath": "github.com/dustin/randbo",
 			"Rev": "7f1b564ca7242d22bcc6e2128beb90d9fa38b9f0"
 		},
@@ -15,6 +24,23 @@
 			"Rev": "61e2910408efd40dafb3c7d856a4cf8aeb5fb1c6"
 		},
 		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "215affda49addc4c8ef7e2534915df2c8c35c6cd"
+		},
+		{
+			"ImportPath": "github.com/gorilla/securecookie",
+			"Rev": "f0559d009e6943011cd1ba6eb16195cf5e0ed326"
+		},
+		{
+			"ImportPath": "github.com/gorilla/sessions",
+			"Rev": "aa5e036e6c44aec69a32eb41097001978b29ad31"
+		},
+		{
+			"ImportPath": "github.com/pelletier/go-toml",
+			"Comment": "v0.2.1-14-g36d65b6",
+			"Rev": "36d65b681a9f120e3bf6f8d0586aa5d0e4519b25"
+		},
+		{
 			"ImportPath": "github.com/unrolled/render",
 			"Rev": "bdfac4a8df10cc9dc03ee14ba2f655137fd70378"
 		},
@@ -22,6 +48,27 @@
 			"ImportPath": "github.com/zenazn/goji",
 			"Comment": "v0.8.3",
 			"Rev": "dcb9598cbbcfcc10d2c1ee1e66958e54a2c84b52"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "8b2d0ae1f4c3b83c10ff17e89a89ff04cc0903c3"
+		},
+		{
+			"ImportPath": "golang.org/x/oauth2",
+			"Rev": "95a9f97e51760382b5da88bbd8c8e75cb561c430"
+		},
+		{
+			"ImportPath": "google.golang.org/cloud/compute/metadata",
+			"Rev": "2e43671e4ad874a7bca65746ff3edb38e6e93762"
+		},
+		{
+			"ImportPath": "google.golang.org/cloud/internal",
+			"Rev": "2e43671e4ad874a7bca65746ff3edb38e6e93762"
+		},
+		{
+			"ImportPath": "gopkg.in/boj/redistore.v1",
+			"Comment": "v1",
+			"Rev": "9d1554b400d726c7aa54b6e4a836f273b72b97f7"
 		}
 	]
 }
