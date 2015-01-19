@@ -38,6 +38,8 @@ var (
 	googleAllowedEmails = config.String("google-allowed-emails", "")
 )
 
+// Utils
+
 func key(args ...string) string {
 	args = append([]string{"submit"}, args...)
 	return strings.Join(args, ":")
@@ -86,6 +88,8 @@ func loginGoogleConfig(req *http.Request) *oauth2.Config {
 	}
 }
 
+// Middlewares
+
 func requireLogin(c *web.C, h http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, req *http.Request) {
 		session, err := rs.Get(req, "session")
@@ -107,9 +111,13 @@ func requireLogin(c *web.C, h http.Handler) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
+// Index
+
 func index(c web.C, w http.ResponseWriter, req *http.Request) {
 	r.HTML(w, http.StatusOK, "index", nil)
 }
+
+// Login
 
 func login(c web.C, w http.ResponseWriter, req *http.Request) {
 	var err error
@@ -178,6 +186,32 @@ func login(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	http.Redirect(w, req, "/", http.StatusFound)
 }
+
+func logout(c web.C, w http.ResponseWriter, req *http.Request) {
+	var err error
+
+	defer func() {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}()
+
+	session, err := rs.Get(req, "session")
+	if err != nil {
+		return
+	}
+
+	session.Options.MaxAge = -1
+	err = session.Save(req, w)
+	if err != nil {
+		return
+	}
+
+	http.Redirect(w, req, "/", http.StatusFound)
+}
+
+// Admin
 
 func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 	var (
@@ -259,30 +293,6 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func logout(c web.C, w http.ResponseWriter, req *http.Request) {
-	var err error
-
-	defer func() {
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}()
-
-	session, err := rs.Get(req, "session")
-	if err != nil {
-		return
-	}
-
-	session.Options.MaxAge = -1
-	err = session.Save(req, w)
-	if err != nil {
-		return
-	}
-
-	http.Redirect(w, req, "/", http.StatusFound)
-}
-
 func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	var (
 		form    Form
@@ -353,6 +363,8 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	})
 }
 
+// Submit
+
 func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 	var (
 		form Form
@@ -396,6 +408,8 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 	http.Redirect(w, req, form.RedirectURL, http.StatusFound)
 }
 
+// Init
+
 func init() {
 	r = render.New(render.Options{
 		Layout:        "layout",
@@ -425,6 +439,8 @@ func init() {
 	}
 	rs, _ = redistore.NewRediStoreWithPool(rp, []byte(*sessionSecret))
 }
+
+// Start
 
 func main() {
 	config.SetPrefix("SUBMIT_")
