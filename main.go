@@ -166,22 +166,33 @@ func login(c web.C, w http.ResponseWriter, req *http.Request) {
 		break
 	}
 
-	allowedEmails := strings.Split(*googleAllowedEmails, ",")
-	for _, allowedEmail := range allowedEmails {
-		if email == allowedEmail {
-			session, err := rs.Get(req, "session")
-			if err != nil {
-				return
+	loggedIn := false
+	if *googleAllowedEmails == "demo" {
+		loggedIn = true
+	} else {
+		allowedEmails := strings.Split(*googleAllowedEmails, ",")
+		for _, allowedEmail := range allowedEmails {
+			if email == allowedEmail {
+				loggedIn = true
+				break
 			}
-
-			session.Values["loggedIn"] = true
-			err = session.Save(req, w)
-			if err != nil {
-				return
-			}
-
-			http.Redirect(w, req, "/admin/", http.StatusFound)
 		}
+	}
+
+	if loggedIn {
+		session, err := rs.Get(req, "session")
+		if err != nil {
+			return
+		}
+
+		session.Values["loggedIn"] = true
+		err = session.Save(req, w)
+		if err != nil {
+			return
+		}
+
+		http.Redirect(w, req, "/admin/", http.StatusFound)
+		return
 	}
 
 	http.Redirect(w, req, "/", http.StatusFound)
