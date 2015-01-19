@@ -1,0 +1,13 @@
+redis:
+  image: redis:latest
+  command: redis-server --appendonly yes
+
+web:
+  build: .
+  links:
+    - redis:redis
+  ports:
+    - 8000
+  environment:
+    REDIS_HOST: redis
+
