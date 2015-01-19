@@ -9,5 +9,5 @@ web:
   ports:
     - 8000
   environment:
-    REDIS_HOST: redis
+    SUBMIT_REDIS_HOST: redis
 

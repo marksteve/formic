@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -32,6 +31,7 @@ var (
 	r                   *render.Render
 	rp                  *redis.Pool
 	rs                  *redistore.RediStore
+	redisHost           = config.String("redis-host", "localhost")
 	sessionSecret       = config.String("session-secret", "")
 	googleClientID      = config.String("google-client-id", "")
 	googleClientSecret  = config.String("google-client-secret", "")
@@ -416,17 +416,13 @@ func init() {
 		Layout:        "layout",
 		IsDevelopment: true,
 	})
-	rh := os.Getenv("REDIS_HOST")
-	if rh == "" {
-		rh = "localhost"
-	}
 	rp = &redis.Pool{
 		MaxIdle:     3,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", fmt.Sprintf(
 				"%s:6379",
-				rh,
+				*redisHost,
 			))
 			if err != nil {
 				return nil, err
