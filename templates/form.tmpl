@@ -1,12 +1,26 @@
 <div class="admin">
   <div class="container">
-    <h1><a href="/admin/">Submit</a></h1>
-    <h2>{{.Name}}</h2>
-    <pre><code>&lt;form action=&quot;{{.URL}}&quot; method=&quot;post&quot;&gt;
+    <h1>Submit</h1>
+    <h2><a href="/admin/">Forms</a> &mdash; {{.Name}}</h2>
+    <div class="row">
+      <div class="eight columns">
+        <pre><code>&lt;form action=&quot;{{.URL}}&quot; method=&quot;post&quot;&gt;
   &lt;p&gt;&lt;input type=&quot;text&quot; name=&quot;name&quot; placeholder=&quot;Name&quot;&gt;&lt;/p&gt;
   &lt;p&gt;&lt;input type=&quot;email&quot; name=&quot;email&quot; placeholder=&quot;Email&quot;&gt;&lt;/p&gt;
-&lt;/form&gt;
-</code></pre>
+  ...
+&lt;/form&gt;</code></pre>
+      </div>
+      <div class="four columns">
+        <p>
+          Just do a <code>POST</code> to the url:<br>
+          <code>{{.URL}}</code><br>
+        </p>
+        <p>
+          Entries will be recorded here. You can put any form fields you want as
+          long as they're just text (<em>i.e. files are ignored</em>).
+        </p>
+      </div>
+    </div>
     <table class="u-full-width">
       <thead>
         <tr>

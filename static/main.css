@@ -23,7 +23,7 @@ h1, h2, h3, h4, h5 {
   border-bottom: 2px solid;
 }
 
-.admin h1 a {
+.admin h2 a {
   color: inherit;
   text-decoration: none;
 }
