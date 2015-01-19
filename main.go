@@ -258,22 +258,23 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	rc := rp.Get()
 
 	defer func() {
-		if err == nil {
-			id := genID()
-
-			rc.Do("HMSET", key("form", id),
-				"ID", id,
-				"Name", formName,
-				"RedirectURL", redirectURL,
-			)
-
-			rc.Do("SADD", key("forms"), id)
-
-			url := fmt.Sprintf("/admin/%s", id)
-			http.Redirect(w, req, url, http.StatusFound)
-		} else {
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
+
+		id := genID()
+
+		rc.Do("HMSET", key("form", id),
+			"ID", id,
+			"Name", formName,
+			"RedirectURL", redirectURL,
+		)
+
+		rc.Do("SADD", key("forms"), id)
+
+		url := fmt.Sprintf("/admin/%s", id)
+		http.Redirect(w, req, url, http.StatusFound)
 	}()
 
 	if err = req.ParseForm(); err != nil {
