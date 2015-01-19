@@ -1,5 +1,5 @@
 <div class="admin">
-  <div class="container">
+  <div class="container-fluid">
     <h1>Submit</h1>
     <h2><a href="/admin/">Forms</a> &mdash; {{.Name}}</h2>
     <div class="row">
@@ -8,6 +8,7 @@
   &lt;p&gt;&lt;input type=&quot;text&quot; name=&quot;name&quot; placeholder=&quot;Name&quot;&gt;&lt;/p&gt;
   &lt;p&gt;&lt;input type=&quot;email&quot; name=&quot;email&quot; placeholder=&quot;Email&quot;&gt;&lt;/p&gt;
   ...
+  &lt;p&gt;&lt;button type=&quot;submit&quot;&gt;Submit&lt;/button&gt;&lt;/p&gt;
 &lt;/form&gt;</code></pre>
       </div>
       <div class="four columns">
@@ -24,16 +25,17 @@
     <table class="u-full-width">
       <thead>
         <tr>
-        {{range $name, $_ := index .Entries 0}}
-          <th>{{$name}}</th>
+        {{range $field := .Fields}}
+          <th>{{$field}}</th>
         {{end}}
         </tr>
       </thead>
       <tbody>
       {{range .Entries}}
         <tr>
-        {{range $_, $value := .}}
-          <td>{{$value}}</td>
+        {{$entry := .}}
+        {{range $.Fields}}
+          <td>{{index $entry .}}</td>
         {{end}}
         </tr>
       {{end}}

@@ -17,8 +17,9 @@ import (
 )
 
 type Form struct {
-	Id   string
-	Name string
+	Id          string
+	Name        string
+	RedirectURL string
 }
 
 var r *render.Render
@@ -29,19 +30,25 @@ func key(args ...string) string {
 	return strings.Join(args, ":")
 }
 
-func index(c web.C, w http.ResponseWriter, req *http.Request) {
-	r.HTML(w, http.StatusOK, "index", nil)
+func genId() string {
+	p := make([]byte, 8)
+	randbo.New().Read(p)
+	return fmt.Sprintf("%x", p)
 }
 
-func submit(c web.C, w http.ResponseWriter, req *http.Request) {
-	if err := req.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+func getForm(rc redis.Conn, id string, form *Form) error {
+	v, err := redis.Values(
+		rc.Do("HGETALL", key("form", id)),
+	)
+	if err != nil {
+		return err
 	}
-	fmt.Fprintf(w, "Form: %s", c.URLParams["id"])
-	for name := range req.PostForm {
-		fmt.Fprintf(w, "%s: %s", name, req.PostForm.Get(name))
-	}
+	redis.ScanStruct(v, form)
+	return nil
+}
+
+func index(c web.C, w http.ResponseWriter, req *http.Request) {
+	r.HTML(w, http.StatusOK, "index", nil)
 }
 
 func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
@@ -50,6 +57,7 @@ func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 		err   error
 	)
 	rc := rp.Get()
+
 	fids, err := redis.Strings(rc.Do(
 		"SMEMBERS",
 		key("forms"),
@@ -62,14 +70,11 @@ func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	for _, fid := range fids {
 		var form Form
-		v, err := redis.Values(
-			rc.Do("HGETALL", key("form", fid)),
-		)
+		err = getForm(rc, fid, &form)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		redis.ScanStruct(v, &form)
 		forms = append(forms, form)
 	}
 
@@ -80,25 +85,26 @@ func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 
 func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	var (
-		formName string
-		err      error
+		formName    string
+		redirectURL string
+		err         error
 	)
 	rc := rp.Get()
 
 	defer func() {
 		if err == nil {
-			p := make([]byte, 8)
-			randbo.New().Read(p)
-			id := fmt.Sprintf("%x", p)
+			id := genId()
 
 			rc.Do("HMSET", key("form", id),
 				"Id", id,
 				"Name", formName,
+				"RedirectURL", redirectURL,
 			)
+
 			rc.Do("SADD", key("forms"), id)
 
 			url := fmt.Sprintf("/admin/%s", id)
-			http.Redirect(w, req, url, http.StatusTemporaryRedirect)
+			http.Redirect(w, req, url, http.StatusFound)
 		} else {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
@@ -108,28 +114,32 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	formName = req.PostForm.Get("name")
+	formName = req.PostForm.Get("formName")
 	if formName == "" {
 		err = errors.New("Form name can't be empty")
+		return
+	}
+
+	redirectURL = req.PostForm.Get("redirectURL")
+	if redirectURL == "" {
+		err = errors.New("Redirect URL can't be empty")
 		return
 	}
 }
 
 func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	var (
-		form Form
-		err  error
+		form    Form
+		entries []interface{}
+		err     error
 	)
 	rc := rp.Get()
 
-	v, err := redis.Values(
-		rc.Do("HGETALL", key("form", c.URLParams["id"])),
-	)
+	err = getForm(rc, c.URLParams["id"], &form)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	redis.ScanStruct(v, &form)
 
 	if form == (Form{}) {
 		http.Error(w, "Form doesn't exist", http.StatusNotFound)
@@ -144,20 +154,86 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	formURL.Host = req.Host
 	formURL.Path = fmt.Sprintf("/s/%s", form.Id)
 
+	fields, err := redis.Strings(rc.Do(
+		"SMEMBERS",
+		key("form", form.Id, "fields"),
+	))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	eids, err := redis.Strings(rc.Do(
+		"SMEMBERS",
+		key("form", form.Id, "entries"),
+	))
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for _, eid := range eids {
+		v, err := redis.Strings(
+			rc.Do("HGETALL", key("form", form.Id, "entry", eid)),
+		)
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		entry := make(map[string]string)
+		for i := 0; i < len(v); i += 2 {
+			entry[v[i]] = v[i+1]
+		}
+
+		entries = append(entries, entry)
+	}
+
 	r.HTML(w, http.StatusOK, "form", map[string]interface{}{
-		"Name": form.Name,
-		"URL":  formURL.String(),
-		"Entries": []map[string]string{
-			map[string]string{
-				"Name":  "Mark Steve Samson",
-				"Email": "hello@marksteve.com",
-			},
-			map[string]string{
-				"Name":  "Mark Steve Samson",
-				"Email": "marksteve@insynchq.com",
-			},
-		},
+		"Name":    form.Name,
+		"URL":     formURL.String(),
+		"Fields":  fields,
+		"Entries": entries,
 	})
+}
+
+func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
+	var (
+		form Form
+		err  error
+	)
+	rc := rp.Get()
+
+	err = getForm(rc, c.URLParams["id"], &form)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if form == (Form{}) {
+		http.Error(w, "Form doesn't exist", http.StatusNotFound)
+		return
+	}
+
+	if err := req.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	eid := genId()
+
+	entry := []interface{}{key("form", form.Id, "entry", eid)}
+	for field := range req.PostForm {
+		entry = append(entry, field, req.PostForm.Get(field))
+		rc.Do("SADD", key("form", form.Id, "fields"), field)
+	}
+	rc.Do("HMSET", entry...)
+
+	rc.Do("SADD", key("form", form.Id, "entries"), eid)
+
+	http.Redirect(w, req, form.RedirectURL, http.StatusFound)
 }
 
 func init() {
@@ -191,13 +267,13 @@ func init() {
 
 func main() {
 	goji.Get("/", index)
-	goji.Post("/s/:id", submit)
+	goji.Post("/s/:id", submitEntry)
 
 	admin := web.New()
 	admin.Use(middleware.SubRouter)
 	admin.Get("/", showForms)
 	admin.Post("/", createForm)
-	admin.Handle("/:id", showForm)
+	admin.Get("/:id", showForm)
 	goji.Handle("/admin/*", admin)
 
 	goji.Get("/static/lib/*", http.StripPrefix(
