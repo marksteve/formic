@@ -51,9 +51,9 @@ func genID() string {
 	return fmt.Sprintf("%x", p)
 }
 
-func getForm(rc redis.Conn, id string, form *Form) error {
+func getForm(rc redis.Conn, k string, form *Form) error {
 	v, err := redis.Values(
-		rc.Do("HGETALL", key("form", id)),
+		rc.Do("HGETALL", k),
 	)
 	if err != nil {
 		return err
@@ -97,7 +97,8 @@ func requireLogin(c *web.C, h http.Handler) http.Handler {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		_, loggedIn := session.Values["loggedIn"]
+
+		uid, loggedIn := session.Values["uid"]
 
 		if !loggedIn {
 			gc := loginGoogleConfig(req)
@@ -105,6 +106,8 @@ func requireLogin(c *web.C, h http.Handler) http.Handler {
 			http.Redirect(w, req, authURL, http.StatusFound)
 			return
 		}
+
+		c.Env["uid"] = uid
 
 		h.ServeHTTP(w, req)
 	}
@@ -147,12 +150,12 @@ func login(c web.C, w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	data, err := jason.NewObjectFromReader(resp.Body)
+	person, err := jason.NewObjectFromReader(resp.Body)
 	if err != nil {
 		return
 	}
 
-	emails, err := data.GetObjectArray("emails")
+	emails, err := person.GetObjectArray("emails")
 	if err != nil {
 		return
 	}
@@ -167,7 +170,7 @@ func login(c web.C, w http.ResponseWriter, req *http.Request) {
 	}
 
 	loggedIn := false
-	if *googleAllowedEmails == "demo" {
+	if *googleAllowedEmails == "anyone" {
 		loggedIn = true
 	} else {
 		allowedEmails := strings.Split(*googleAllowedEmails, ",")
@@ -185,7 +188,12 @@ func login(c web.C, w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		session.Values["loggedIn"] = true
+		uid, err := person.GetString("id")
+		if err != nil {
+			return
+		}
+
+		session.Values["uid"] = uid
 		err = session.Save(req, w)
 		if err != nil {
 			return
@@ -229,6 +237,8 @@ func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 		forms []Form
 		err   error
 	)
+
+	uid := c.Env["uid"].(string)
 	rc := rp.Get()
 
 	defer func() {
@@ -240,7 +250,7 @@ func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	fids, err := redis.Strings(rc.Do(
 		"SMEMBERS",
-		key("forms"),
+		key(uid, "forms"),
 	))
 	if err != nil {
 		return
@@ -248,7 +258,7 @@ func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	for _, fid := range fids {
 		var form Form
-		err = getForm(rc, fid, &form)
+		err = getForm(rc, key(uid, "form", fid), &form)
 		if err != nil {
 			return
 		}
@@ -266,6 +276,8 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		redirectURL string
 		err         error
 	)
+
+	uid := c.Env["uid"].(string)
 	rc := rp.Get()
 
 	defer func() {
@@ -276,13 +288,13 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 
 		id := genID()
 
-		rc.Do("HMSET", key("form", id),
+		rc.Do("HMSET", key(uid, "form", id),
 			"ID", id,
 			"Name", formName,
 			"RedirectURL", redirectURL,
 		)
 
-		rc.Do("SADD", key("forms"), id)
+		rc.Do("SADD", key(uid, "forms"), id)
 
 		url := fmt.Sprintf("/admin/%s", id)
 		http.Redirect(w, req, url, http.StatusFound)
@@ -311,6 +323,8 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		entries []interface{}
 		err     error
 	)
+
+	uid := c.Env["uid"].(string)
 	rc := rp.Get()
 
 	defer func() {
@@ -320,7 +334,7 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
-	err = getForm(rc, c.URLParams["id"], &form)
+	err = getForm(rc, key(uid, "form", c.URLParams["id"]), &form)
 	if err != nil {
 		return
 	}
@@ -335,7 +349,7 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	fields, err := redis.Strings(rc.Do(
 		"SMEMBERS",
-		key("form", form.ID, "fields"),
+		key(uid, "form", form.ID, "fields"),
 	))
 	if err != nil {
 		return
@@ -343,7 +357,7 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	eids, err := redis.Strings(rc.Do(
 		"SMEMBERS",
-		key("form", form.ID, "entries"),
+		key(uid, "form", form.ID, "entries"),
 	))
 
 	if err != nil {
@@ -352,7 +366,7 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	for _, eid := range eids {
 		v, err := redis.Strings(
-			rc.Do("HGETALL", key("form", form.ID, "entry", eid)),
+			rc.Do("HGETALL", key(uid, "form", form.ID, "entry", eid)),
 		)
 
 		if err != nil {
@@ -382,6 +396,8 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 		form Form
 		err  error
 	)
+
+	uid := c.Env["uid"].(string)
 	rc := rp.Get()
 
 	defer func() {
@@ -391,7 +407,7 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
-	err = getForm(rc, c.URLParams["id"], &form)
+	err = getForm(rc, key(uid, "form", c.URLParams["id"]), &form)
 	if err != nil {
 		return
 	}
@@ -408,14 +424,14 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	eid := genID()
 
-	entry := []interface{}{key("form", form.ID, "entry", eid)}
+	entry := []interface{}{key(uid, "form", form.ID, "entry", eid)}
 	for field := range req.PostForm {
 		entry = append(entry, field, req.PostForm.Get(field))
-		rc.Do("SADD", key("form", form.ID, "fields"), field)
+		rc.Do("SADD", key(uid, "form", form.ID, "fields"), field)
 	}
 	rc.Do("HMSET", entry...)
 
-	rc.Do("SADD", key("form", form.ID, "entries"), eid)
+	rc.Do("SADD", key(uid, "form", form.ID, "entries"), eid)
 
 	http.Redirect(w, req, form.RedirectURL, http.StatusFound)
 }
