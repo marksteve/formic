@@ -68,8 +68,9 @@ func createURL(req *http.Request) url.URL {
 	var url_ *url.URL
 	url_ = req.URL
 	url_.Scheme = "http"
-	if req.TLS != nil {
-		url_.Scheme += "s"
+	fwdScheme := req.Header.Get("X-Forwarded-Proto")
+	if fwdScheme != "" {
+		url_.Scheme = fwdScheme
 	}
 	url_.Host = req.Host
 	url_.RawQuery = ""
