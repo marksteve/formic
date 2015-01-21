@@ -1,5 +1,9 @@
+html {
+  background: black url(space.jpg) no-repeat center center;
+  background-size: cover;
+}
+
 body {
-  background-color: #333;
   color: white;
   font-family: Titillium Web, sans-serif;
   padding: 3em;
