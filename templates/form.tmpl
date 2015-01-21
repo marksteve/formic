@@ -4,45 +4,77 @@
       <a href="/logout" class="u-pull-right button">Logout</a>
       <h1>Submit</h1>
     </div>
-    <h2><a href="/admin/">Forms</a> &mdash; {{.Name}}</h2>
+    <h2><a href="/admin/">Forms</a> &mdash; {{.Form.Name}}</h2>
     <div class="row">
       <div class="eight columns">
-        <pre><code>&lt;form action=&quot;{{.URL}}&quot; method=&quot;post&quot;&gt;
+        <div class="row">
+          <div class="eight columns">
+            <pre><code>&lt;form action=&quot;{{.FormURL}}&quot; method=&quot;post&quot;&gt;
   &lt;p&gt;&lt;input type=&quot;text&quot; name=&quot;name&quot; placeholder=&quot;Name&quot;&gt;&lt;/p&gt;
   &lt;p&gt;&lt;input type=&quot;email&quot; name=&quot;email&quot; placeholder=&quot;Email&quot;&gt;&lt;/p&gt;
   ...
   &lt;p&gt;&lt;button type=&quot;submit&quot;&gt;Submit&lt;/button&gt;&lt;/p&gt;
 &lt;/form&gt;</code></pre>
+          </div>
+          <div class="four columns">
+            <p>
+              Just do a <code>POST</code> to the url:
+              <pre><code>{{.FormURL}}</code></pre>
+            </p>
+            <p>
+              Entries will be recorded here. You can put any form fields you want as
+              long as they're just text (<em>i.e. files are ignored</em>).
+            </p>
+          </div>
+        </div>
+        <table class="u-full-width">
+          <thead>
+            <tr>
+            {{range $field := .Fields}}
+              <th>{{$field}}</th>
+            {{end}}
+            </tr>
+          </thead>
+          <tbody>
+          {{range .Entries}}
+            <tr>
+            {{$entry := .}}
+            {{range $.Fields}}
+              <td>{{index $entry .}}</td>
+            {{end}}
+            </tr>
+          {{end}}
+          </tbody>
+        </table>
       </div>
       <div class="four columns">
-        <p>
-          Just do a <code>POST</code> to the url:<br>
-          <code>{{.URL}}</code><br>
-        </p>
-        <p>
-          Entries will be recorded here. You can put any form fields you want as
-          long as they're just text (<em>i.e. files are ignored</em>).
-        </p>
+        <h2>Update Form</h2>
+        <form action="" method="post">
+          <p>
+            <label for="form-name">Form Name</label>
+            <input
+              type="text"
+              name="formName"
+              id="form-name"
+              class="u-full-width"
+              value="{{.Form.Name}}"
+            >
+            <label for="redirect-url">Redirect URL</label>
+            <input
+              type="text"
+              name="redirectURL"
+              id="redirect-url"
+              class="u-full-width"
+              value="{{.Form.RedirectURL}}"
+            >
+          </p>
+          <p>
+            <button class="button-primary" type="submit">
+              Update Form
+            </button>
+          </p>
+        </form>
       </div>
     </div>
-    <table class="u-full-width">
-      <thead>
-        <tr>
-        {{range $field := .Fields}}
-          <th>{{$field}}</th>
-        {{end}}
-        </tr>
-      </thead>
-      <tbody>
-      {{range .Entries}}
-        <tr>
-        {{$entry := .}}
-        {{range $.Fields}}
-          <td>{{index $entry .}}</td>
-        {{end}}
-        </tr>
-      {{end}}
-      </tbody>
-    </table>
   </div>
 </div>

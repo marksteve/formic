@@ -24,8 +24,22 @@
         <h2>New Form</h2>
         <form action="" method="post">
           <p>
-            <input class="u-full-width" type="text" name="formName" placeholder="Form Name">
-            <input class="u-full-width" type="text" name="redirectURL" placeholder="Redirect URL">
+            <label for="form-name">Form Name</label>
+            <input
+              type="text"
+              name="formName"
+              id="form-name"
+              class="u-full-width"
+            >
+            <label for="redirect-url">Redirect URL</label>
+            <input
+              type="text"
+              name="redirectURL"
+              id="redirect-url"
+              class="u-full-width"
+            >
+          </p>
+          <p>
             <button class="button-primary" type="submit">
               Create Form
             </button>

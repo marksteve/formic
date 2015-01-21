@@ -258,7 +258,7 @@ func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	for _, fid := range fids {
 		var form Form
-		err = getForm(rc, key(uid, "form", fid), &form)
+		err = getForm(rc, key("form", fid), &form)
 		if err != nil {
 			return
 		}
@@ -288,7 +288,7 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 
 		id := genID()
 
-		rc.Do("HMSET", key(uid, "form", id),
+		rc.Do("HMSET", key("form", id),
 			"ID", id,
 			"Name", formName,
 			"RedirectURL", redirectURL,
@@ -324,7 +324,6 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		err     error
 	)
 
-	uid := c.Env["uid"].(string)
 	rc := rp.Get()
 
 	defer func() {
@@ -334,7 +333,7 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
-	err = getForm(rc, key(uid, "form", c.URLParams["id"]), &form)
+	err = getForm(rc, key("form", c.URLParams["id"]), &form)
 	if err != nil {
 		return
 	}
@@ -349,7 +348,7 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	fields, err := redis.Strings(rc.Do(
 		"SMEMBERS",
-		key(uid, "form", form.ID, "fields"),
+		key("form", form.ID, "fields"),
 	))
 	if err != nil {
 		return
@@ -357,7 +356,7 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	eids, err := redis.Strings(rc.Do(
 		"SMEMBERS",
-		key(uid, "form", form.ID, "entries"),
+		key("form", form.ID, "entries"),
 	))
 
 	if err != nil {
@@ -366,7 +365,7 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	for _, eid := range eids {
 		v, err := redis.Strings(
-			rc.Do("HGETALL", key(uid, "form", form.ID, "entry", eid)),
+			rc.Do("HGETALL", key("form", form.ID, "entry", eid)),
 		)
 
 		if err != nil {
@@ -382,11 +381,51 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	}
 
 	r.HTML(w, http.StatusOK, "form", map[string]interface{}{
-		"Name":    form.Name,
-		"URL":     formURL.String(),
+		"Form":    form,
+		"FormURL": formURL.String(),
 		"Fields":  fields,
 		"Entries": entries,
 	})
+}
+
+func updateForm(c web.C, w http.ResponseWriter, req *http.Request) {
+	var (
+		formName    string
+		redirectURL string
+		err         error
+	)
+
+	rc := rp.Get()
+
+	defer func() {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		rc.Do("HMSET", key("form", c.URLParams["id"]),
+			"Name", formName,
+			"RedirectURL", redirectURL,
+		)
+
+		showForm(c, w, req)
+	}()
+
+	if err = req.ParseForm(); err != nil {
+		return
+	}
+
+	formName = req.PostForm.Get("formName")
+	if formName == "" {
+		err = errors.New("Form name can't be empty")
+		return
+	}
+
+	redirectURL = req.PostForm.Get("redirectURL")
+	if redirectURL == "" {
+		err = errors.New("Redirect URL can't be empty")
+		return
+	}
 }
 
 // Submit
@@ -397,7 +436,6 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 		err  error
 	)
 
-	uid := c.Env["uid"].(string)
 	rc := rp.Get()
 
 	defer func() {
@@ -407,7 +445,7 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
-	err = getForm(rc, key(uid, "form", c.URLParams["id"]), &form)
+	err = getForm(rc, key("form", c.URLParams["id"]), &form)
 	if err != nil {
 		return
 	}
@@ -424,14 +462,14 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	eid := genID()
 
-	entry := []interface{}{key(uid, "form", form.ID, "entry", eid)}
+	entry := []interface{}{key("form", form.ID, "entry", eid)}
 	for field := range req.PostForm {
 		entry = append(entry, field, req.PostForm.Get(field))
-		rc.Do("SADD", key(uid, "form", form.ID, "fields"), field)
+		rc.Do("SADD", key("form", form.ID, "fields"), field)
 	}
 	rc.Do("HMSET", entry...)
 
-	rc.Do("SADD", key(uid, "form", form.ID, "entries"), eid)
+	rc.Do("SADD", key("form", form.ID, "entries"), eid)
 
 	http.Redirect(w, req, form.RedirectURL, http.StatusFound)
 }
@@ -480,6 +518,7 @@ func main() {
 	admin.Get("/", showForms)
 	admin.Post("/", createForm)
 	admin.Get("/:id", showForm)
+	admin.Post("/:id", updateForm)
 	goji.Handle("/admin/*", admin)
 
 	goji.Post("/s/:id", submitEntry)
