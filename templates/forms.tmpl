@@ -1,8 +1,8 @@
-<div class="admin">
+<div class="dashboard">
   <div class="container-fluid">
     <div class="u-full-width u-cf">
       <a href="/logout" class="u-pull-right button">Logout</a>
-      <h1>Submit</h1>
+      <h1>Formic</h1>
     </div>
     <div class="row">
       <div class="eight columns">
@@ -11,10 +11,10 @@
         {{range .Forms}}
           <li class="row">
             <div class="name six columns">
-              <a href="/admin/{{.ID}}">{{.Name}}</a>
+              <a href="/dashboard/{{.ID}}">{{.Name}}</a>
             </div>
             <div class="actions six columns">
-              <a class="delete-form button" href="/admin/{{.ID}}">Delete</a>
+              <a class="delete-form button" href="/dashboard/{{.ID}}">Delete</a>
             </div>
           </li>
         {{end}}

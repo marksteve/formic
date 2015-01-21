@@ -1,12 +1,12 @@
-<div class="admin">
+<div class="dashboard">
   <div class="container-fluid">
     <div class="u-full-width u-cf">
       <a href="/logout" class="u-pull-right button">Logout</a>
-      <h1>Submit</h1>
+      <h1>Formic</h1>
     </div>
-    <h2><a href="/admin/">Forms</a> &mdash; {{.Form.Name}}</h2>
     <div class="row">
       <div class="eight columns">
+        <h2><a href="/dashboard/">Forms</a> <span>&rsaquo;</span> {{.Form.Name}}</h2>
         <div class="row">
           <div class="eight columns">
             <pre><code>&lt;form action=&quot;{{.FormURL}}&quot; method=&quot;post&quot;&gt;
@@ -31,7 +31,7 @@
           <thead>
             <tr>
             {{range $field := .Fields}}
-              <th>{{$field}}</th>
+              <th>{{$field | Title}}</th>
             {{end}}
             </tr>
           </thead>

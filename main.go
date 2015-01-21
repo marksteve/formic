@@ -3,8 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -41,7 +43,7 @@ var (
 // Utils
 
 func key(args ...string) string {
-	args = append([]string{"submit"}, args...)
+	args = append([]string{"formic"}, args...)
 	return strings.Join(args, ":")
 }
 
@@ -199,7 +201,7 @@ func login(c web.C, w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		http.Redirect(w, req, "/admin/", http.StatusFound)
+		http.Redirect(w, req, "/dashboard/", http.StatusFound)
 		return
 	}
 
@@ -230,7 +232,7 @@ func logout(c web.C, w http.ResponseWriter, req *http.Request) {
 	http.Redirect(w, req, "/", http.StatusFound)
 }
 
-// Admin
+// Dashboard
 
 func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 	var (
@@ -296,7 +298,7 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 
 		rc.Do("SADD", key(uid, "forms"), id)
 
-		url := fmt.Sprintf("/admin/%s", id)
+		url := fmt.Sprintf("/dashboard/%s", id)
 		http.Redirect(w, req, url, http.StatusFound)
 	}()
 
@@ -505,7 +507,12 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 
 func init() {
 	r = render.New(render.Options{
-		Layout:        "layout",
+		Layout: "layout",
+		Funcs: []template.FuncMap{
+			template.FuncMap{
+				"Title": strings.Title,
+			},
+		},
 		IsDevelopment: true,
 	})
 	rp = &redis.Pool{
@@ -532,22 +539,40 @@ func init() {
 // Start
 
 func main() {
-	config.SetPrefix("SUBMIT_")
-	config.Parse("submit.conf")
+	config.SetPrefix("FORMIC_")
+	config.Parse("formic.toml")
 
+	missingConfig := make([]string, 0)
+	for n, v := range map[string]string{
+		"Session Secret":        *sessionSecret,
+		"Google Client ID":      *googleClientID,
+		"Google Client Secret":  *googleClientSecret,
+		"Google ALlowed Emails": *googleAllowedEmails,
+	} {
+		if v == "" {
+			missingConfig = append(missingConfig, n)
+		}
+	}
+	if len(missingConfig) > 0 {
+		fmt.Printf(
+			"Missing config: %s\n",
+			strings.Join(missingConfig, ", "),
+		)
+		os.Exit(1)
+	}
 	goji.Get("/", index)
 	goji.Get("/oauth2callback", login)
 	goji.Get("/logout", logout)
 
-	admin := web.New()
-	admin.Use(middleware.SubRouter)
-	admin.Use(requireLogin)
-	admin.Get("/", showForms)
-	admin.Post("/", createForm)
-	admin.Get("/:id", showForm)
-	admin.Post("/:id", updateForm)
-	admin.Delete("/:id", deleteForm)
-	goji.Handle("/admin/*", admin)
+	dashboard := web.New()
+	dashboard.Use(middleware.SubRouter)
+	dashboard.Use(requireLogin)
+	dashboard.Get("/", showForms)
+	dashboard.Post("/", createForm)
+	dashboard.Get("/:id", showForm)
+	dashboard.Post("/:id", updateForm)
+	dashboard.Delete("/:id", deleteForm)
+	goji.Handle("/dashboard/*", dashboard)
 
 	goji.Post("/s/:id", submitEntry)
 

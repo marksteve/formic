@@ -1,56 +1,110 @@
 body {
-  font-family: PT Sans, sans-serif;
+  background-color: #333;
+  color: white;
+  font-family: Titillium Web, sans-serif;
   padding: 3em;
 }
 
-h1, h2, h3, h4, h5 {
-  font-family: Aleo, serif;
+h1 {
+  font-family: Megrim, sans-serif;
+  font-size: 6rem;
+}
+
+h2, h3, h4, h5 {
+  font-weight: 200;
+}
+
+label {
+  font-weight: 300;
+}
+
+input[type=text],
+input[type=email],
+input[type=password],
+textarea,
+.button,
+button {
+  background: transparent;
+  color: white;
+}
+
+.button:hover,
+button:hover,
+.button:focus,
+button:focus {
+  color: silver;
+}
+
+.button.button-primary,
+button.button-primary {
+  background-color: white;
+  border: 0;
+  color: #333;
+}
+
+.button.button-primary:hover,
+button.button-primary:hover {
+}
+
+code {
+  background-color: transparent;
+  border-color: silver;
+  color: silver;
 }
 
 .index {
   text-align: center;
-  border: 1px solid;
-  width: 20em;
+  border: 1px solid silver;
   margin: 3em auto;
   padding: 3em 0;
   border-radius: 5px;
 }
 
-.admin h1 {
-  border-bottom: 2px solid;
+.index footer {
+  margin-top: 6em;
 }
 
-.admin h2 a {
+.dashboard h1 {
+  border-bottom: 2px solid silver;
+}
+
+.dashboard h2 a {
   color: inherit;
   text-decoration: none;
 }
 
-.admin ul {
-  list-style: none;
-  border-top: 1px solid;
+.dashboard h2 span {
+  font-size: 200%;
+  line-height: 0.5;
+  vertical-align: top;
+  margin-right: 0.1em;
 }
 
-.admin li {
-  border-bottom: 1px solid;
+.dashboard ul {
+  list-style: none;
+  border-top: 1px solid silver;
+}
+
+.dashboard li {
+  border-bottom: 1px solid silver;
   padding: 1em;
   margin: 0;
   vertical-align: middle;
 }
 
-.admin li .name {
+.dashboard li .name {
   line-height: 38px;
 }
 
-.admin li .name a {
+.dashboard li .name a {
   color: inherit;
   text-decoration: none;
-  font-weight: bold;
 }
 
-.admin li .actions {
+.dashboard li .actions {
   text-align: right;
 }
 
-.admin li .actions .button {
+.dashboard li .actions .button {
   margin: 0;
 }
