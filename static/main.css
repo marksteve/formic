@@ -64,6 +64,10 @@ code {
   margin-top: 6em;
 }
 
+.index form {
+  margin-top: 6em;
+}
+
 .dashboard h1 {
   border-bottom: 2px solid silver;
 }
