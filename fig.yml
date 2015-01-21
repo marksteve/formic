@@ -9,5 +9,5 @@ web:
   ports:
     - 8000
   environment:
-    SUBMIT_REDIS_HOST: redis
+    FORMIC_REDIS_HOST: redis
 
