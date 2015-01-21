@@ -14,7 +14,7 @@
               <a href="/admin/{{.ID}}">{{.Name}}</a>
             </div>
             <div class="actions six columns">
-              <a class="button" href="/admin/{{.ID}}">Delete</a>
+              <a class="delete-form button" href="/admin/{{.ID}}">Delete</a>
             </div>
           </li>
         {{end}}
@@ -48,3 +48,27 @@
       </div>
   </div>
 </div>
+<script src="/static/lib/superagent/superagent.js"></script>
+<script>
+  function deleteForm(e) {
+    e.preventDefault();
+    var el = e.target;
+    var confirmDelete = window.confirm("Are you sure?");
+    if (confirmDelete) {
+      superagent
+        .del(el.href)
+        .end(function(res) {
+          if (res.ok) {
+            el.removeEventListener('click', deleteForm);
+            el.parentNode.parentNode.remove();
+          }
+        });
+    }
+  }
+  Array.prototype.forEach.call(
+    document.querySelectorAll('.delete-form'),
+    function(el) {
+      el.addEventListener('click', deleteForm)
+    }
+  );
+</script>

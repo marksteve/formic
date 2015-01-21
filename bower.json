@@ -13,6 +13,7 @@
     "tests"
   ],
   "dependencies": {
-    "skeleton": "~2.0.4"
+    "skeleton": "~2.0.4",
+    "superagent": "~0.21.0"
   }
 }

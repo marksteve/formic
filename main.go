@@ -46,7 +46,7 @@ func key(args ...string) string {
 }
 
 func genID() string {
-	p := make([]byte, 8)
+	p := make([]byte, 4)
 	randbo.New().Read(p)
 	return fmt.Sprintf("%x", p)
 }
@@ -428,6 +428,33 @@ func updateForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func deleteForm(c web.C, w http.ResponseWriter, req *http.Request) {
+	var (
+		err error
+	)
+
+	uid := c.Env["uid"].(string)
+	rc := rp.Get()
+
+	defer func() {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}()
+
+	_, err = rc.Do("SADD", key(uid, "deletedForms"), c.URLParams["id"])
+	if err != nil {
+		return
+	}
+
+	_, err = rc.Do("SREM", key(uid, "forms"), c.URLParams["id"])
+	if err != nil {
+		return
+	}
+
+}
+
 // Submit
 
 func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
@@ -519,6 +546,7 @@ func main() {
 	admin.Post("/", createForm)
 	admin.Get("/:id", showForm)
 	admin.Post("/:id", updateForm)
+	admin.Delete("/:id", deleteForm)
 	goji.Handle("/admin/*", admin)
 
 	goji.Post("/s/:id", submitEntry)
