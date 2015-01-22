@@ -14,6 +14,17 @@
 </head>
 <body>
   {{ yield }}
+  <script>
+    function closeMessage(e) {
+      e.target.parentNode.remove();
+    }
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.message .close'),
+      function(el) {
+        el.addEventListener('click', closeMessage);
+      }
+    );
+  </script>
 </body>
 </html>
 

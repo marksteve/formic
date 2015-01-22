@@ -14,6 +14,7 @@ import (
 	"github.com/drone/config"
 	"github.com/dustin/randbo"
 	"github.com/garyburd/redigo/redis"
+	"github.com/gorilla/sessions"
 	"github.com/unrolled/render"
 	"github.com/zenazn/goji"
 	"github.com/zenazn/goji/web"
@@ -27,6 +28,11 @@ type Form struct {
 	ID          string
 	Name        string
 	RedirectURL string
+}
+
+type Message struct {
+	Type string
+	Text string
 }
 
 var (
@@ -51,6 +57,26 @@ func genID() string {
 	p := make([]byte, 4)
 	randbo.New().Read(p)
 	return fmt.Sprintf("%x", p)
+}
+
+func getMessages(c web.C, w http.ResponseWriter, req *http.Request) []Message {
+	session := c.Env["session"].(*sessions.Session)
+	var messages []Message
+	for _, messageType := range []string{
+		"info",
+		"success",
+		"warning",
+		"error",
+	} {
+		for _, message := range session.Flashes(messageType) {
+			messages = append(messages, Message{
+				Type: messageType,
+				Text: message.(string),
+			})
+		}
+	}
+	session.Save(req, w)
+	return messages
 }
 
 func getForm(rc redis.Conn, k string, form *Form) error {
@@ -95,11 +121,7 @@ func loginGoogleConfig(req *http.Request) *oauth2.Config {
 
 func requireLogin(c *web.C, h http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, req *http.Request) {
-		session, err := rs.Get(req, "session")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		session := c.Env["session"].(*sessions.Session)
 
 		uid, loggedIn := session.Values["uid"]
 
@@ -112,6 +134,19 @@ func requireLogin(c *web.C, h http.Handler) http.Handler {
 
 		c.Env["uid"] = uid
 
+		h.ServeHTTP(w, req)
+	}
+	return http.HandlerFunc(fn)
+}
+
+func sessionEnv(c *web.C, h http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, req *http.Request) {
+		session, err := rs.Get(req, "session")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		c.Env["session"] = session
 		h.ServeHTTP(w, req)
 	}
 	return http.HandlerFunc(fn)
@@ -269,7 +304,8 @@ func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 	}
 
 	r.HTML(w, http.StatusOK, "forms", map[string]interface{}{
-		"Forms": forms,
+		"Forms":    forms,
+		"Messages": getMessages(c, w, req),
 	})
 }
 
@@ -280,12 +316,15 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		err         error
 	)
 
+	session := c.Env["session"].(*sessions.Session)
 	uid := c.Env["uid"].(string)
 	rc := rp.Get()
 
 	defer func() {
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			session.AddFlash(err.Error(), "warning")
+			session.Save(req, w)
+			showForms(c, w, req)
 			return
 		}
 
@@ -298,6 +337,9 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		)
 
 		rc.Do("SADD", key(uid, "forms"), id)
+
+		session.AddFlash("Form created", "success")
+		session.Save(req, w)
 
 		url := fmt.Sprintf("/dashboard/%s", id)
 		http.Redirect(w, req, url, http.StatusFound)
@@ -384,10 +426,11 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	}
 
 	r.HTML(w, http.StatusOK, "form", map[string]interface{}{
-		"Form":    form,
-		"FormURL": formURL.String(),
-		"Fields":  fields,
-		"Entries": entries,
+		"Form":     form,
+		"FormURL":  formURL.String(),
+		"Fields":   fields,
+		"Entries":  entries,
+		"Messages": getMessages(c, w, req),
 	})
 }
 
@@ -398,11 +441,14 @@ func updateForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		err         error
 	)
 
+	session := c.Env["session"].(*sessions.Session)
 	rc := rp.Get()
 
 	defer func() {
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			session.AddFlash(err.Error(), "warning")
+			session.Save(req, w)
+			showForm(c, w, req)
 			return
 		}
 
@@ -411,6 +457,8 @@ func updateForm(c web.C, w http.ResponseWriter, req *http.Request) {
 			"RedirectURL", redirectURL,
 		)
 
+		session.AddFlash("Form updated", "info")
+		session.Save(req, w)
 		showForm(c, w, req)
 	}()
 
@@ -436,12 +484,15 @@ func deleteForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		err error
 	)
 
+	session := c.Env["session"].(*sessions.Session)
 	uid := c.Env["uid"].(string)
 	rc := rp.Get()
 
 	defer func() {
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			session.AddFlash(err.Error(), "warning")
+			session.Save(req, w)
+			showForm(c, w, req)
 			return
 		}
 	}()
@@ -567,6 +618,7 @@ func main() {
 
 	dashboard := web.New()
 	dashboard.Use(middleware.SubRouter)
+	dashboard.Use(sessionEnv)
 	dashboard.Use(requireLogin)
 	dashboard.Get("/", showForms)
 	dashboard.Post("/", createForm)

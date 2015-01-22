@@ -72,6 +72,37 @@ code {
   margin-top: 6em;
 }
 
+.messages {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+}
+
+.message {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid;
+  padding: 1em;
+  margin: 1em auto;
+  position: relative;
+  max-width: 40rem;
+}
+.message.info { color: dodgerblue; }
+.message.success { color: yellowgreen; }
+.message.warning { color: goldenrod; }
+.message.error { color: crimson; }
+
+.message .close {
+  position: absolute;
+  top: 0;
+  right: 1rem;
+  padding: 0;
+  border: 0;
+  font-size: 3rem;
+  font-weight: 200;
+  color: inherit;
+}
+
 .dashboard h1 {
   border-bottom: 2px solid silver;
 }

@@ -1,3 +1,12 @@
+<div class="messages">
+  {{range .Messages}}
+  <div class="message {{.Type}}">
+    {{.Text}}
+    <button class="close">&times;</button>
+  </div>
+  {{end}}
+</div>
+
 <div class="dashboard">
   <div class="container-fluid">
     <div class="u-full-width u-cf">
