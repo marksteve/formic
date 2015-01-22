@@ -492,9 +492,10 @@ func deleteForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			session.AddFlash(err.Error(), "warning")
 			session.Save(req, w)
-			showForm(c, w, req)
 			return
 		}
+		session.AddFlash("Form deleted", "success")
+		session.Save(req, w)
 	}()
 
 	_, err = rc.Do("SADD", key(uid, "deletedForms"), c.URLParams["id"])

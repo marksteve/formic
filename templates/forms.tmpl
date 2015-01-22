@@ -9,10 +9,10 @@
 
 <div class="dashboard">
   <div class="container-fluid">
-    <div class="u-full-width u-cf">
+    <header class="u-full-width u-cf">
       <a href="/logout" class="u-pull-right button">Logout</a>
-      <h1>Formic</h1>
-    </div>
+      <h1><a href="/">Formic</a></h1>
+    </header>
     <div class="row">
       <div class="eight columns">
         <h2>Forms</h2>
@@ -26,6 +26,8 @@
               <a class="delete-form button" href="/dashboard/{{.ID}}">Delete</a>
             </div>
           </li>
+        {{else}}
+          <li>You haven't created any forms yet</li>
         {{end}}
         </ul>
       </div>
@@ -59,20 +61,39 @@
 </div>
 <script src="/static/lib/superagent/superagent.js"></script>
 <script>
+  function createButton(label, onClick) {
+    var button = document.createElement('button');
+    button.innerText = label;
+    button.addEventListener('click', onClick);
+    return button;
+  }
   function deleteForm(e) {
     e.preventDefault();
     var el = e.target;
-    var confirmDelete = window.confirm("Are you sure?");
-    if (confirmDelete) {
+    var messages = document.querySelector('.messages');
+    var message = document.createElement('div');
+    message.classList.add('message');
+    message.classList.add('warning');
+    message.innerText = "Are you sure you want to delete that form?"
+    var yes = createButton('yes', function() {
       superagent
         .del(el.href)
         .end(function(res) {
           if (res.ok) {
-            el.removeEventListener('click', deleteForm);
-            el.parentNode.parentNode.remove();
+            location.reload();
           }
         });
-    }
+      message.remove();
+    });
+    var no = createButton('no', function() {
+      message.remove();
+    });
+    var buttons = document.createElement('div');
+    buttons.classList.add('buttons');
+    buttons.appendChild(yes);
+    buttons.appendChild(no);
+    message.appendChild(buttons);
+    messages.insertBefore(message, messages.firstChild);
   }
   Array.prototype.forEach.call(
     document.querySelectorAll('.delete-form'),

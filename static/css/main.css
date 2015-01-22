@@ -1,5 +1,5 @@
 html {
-  background: black url(space.jpg) no-repeat center center;
+  background: black url(../images/space.jpg) no-repeat center center;
   background-size: cover;
 }
 
@@ -64,6 +64,12 @@ code {
   border-radius: 5px;
 }
 
+.index h1 {
+  padding-top: 220px;
+  background: url(../images/formic.png) no-repeat top center;
+  background-size: 200px;
+}
+
 .index footer {
   margin-top: 6em;
 }
@@ -74,18 +80,19 @@ code {
 
 .messages {
   position: fixed;
-  bottom: 0;
+  top: 0;
   left: 0;
-  width: 100%;
+  right: 0;
+  width: 40rem;
+  margin: 0 auto;
 }
 
 .message {
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.8);
   border: 1px solid;
-  padding: 1em;
-  margin: 1em auto;
+  padding: 1rem 2rem;
+  margin: 3rem auto;
   position: relative;
-  max-width: 40rem;
 }
 .message.info { color: dodgerblue; }
 .message.success { color: yellowgreen; }
@@ -103,10 +110,30 @@ code {
   color: inherit;
 }
 
+.message .buttons {
+  margin-top: 3rem;
+  text-align: right;
+}
+
+.message .buttons button {
+  border-color: inherit;
+  color: inherit;
+  margin-left: 1rem;
+}
+
+.dashboard header {
+  background: url(../images/formic.png) no-repeat left center;
+  background-size: 100px;
+  padding-left: 110px;
+  line-height: 100px;
+  margin-bottom: 3rem;
+}
+
 .dashboard h1 {
   border-bottom: 2px solid silver;
 }
 
+.dashboard h1 a,
 .dashboard h2 a {
   color: inherit;
   text-decoration: none;

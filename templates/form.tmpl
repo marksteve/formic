@@ -9,10 +9,10 @@
 
 <div class="dashboard">
   <div class="container-fluid">
-    <div class="u-full-width u-cf">
+    <header class="u-full-width u-cf">
       <a href="/logout" class="u-pull-right button">Logout</a>
-      <h1>Formic</h1>
-    </div>
+      <h1><a href="/">Formic</a></h1>
+    </header>
     <div class="row">
       <div class="eight columns">
         <h2><a href="/dashboard/">Forms</a> <span>&rsaquo;</span> {{.Form.Name}}</h2>
@@ -31,8 +31,7 @@
               <pre><code>{{.FormURL}}</code></pre>
             </p>
             <p>
-              Entries will be recorded here. You can put any form fields you want as
-              long as they're just text (<em>i.e. files are ignored</em>).
+              You can put any form fields you want as long as they're just text (<em>i.e. files are ignored</em>).
             </p>
           </div>
         </div>
@@ -51,6 +50,12 @@
             {{range $.Fields}}
               <td>{{index $entry .}}</td>
             {{end}}
+            </tr>
+          {{else}}
+            <tr>
+              <td>
+                Entries posted to the form will be recorded here
+              </td>
             </tr>
           {{end}}
           </tbody>
