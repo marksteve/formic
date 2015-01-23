@@ -66,7 +66,18 @@ godep go run main.go -bind 127.0.0.1:5000
 
 Space background image from: https://flic.kr/p/9pGfXt
 
----
+## (Might be) FAQ
+
+__I think I've seen something similar before__
+
+Yes you have!
+
+- https://formkeep.com
+- http://forms.brace.io/
+
+__NIH?__
+
+Nope! I was learning Go and wanted to create something that I'd use with it.
 
 __Why name it after the [buggers](http://ansible.wikia.com/wiki/Formic)?__
 
