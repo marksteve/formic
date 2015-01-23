@@ -38,6 +38,7 @@
         <table class="u-full-width">
           <thead>
             <tr>
+              <th>Submitted <small>(UTC)</small></th>
             {{range $field := .Fields}}
               <th>{{$field | Title}}</th>
             {{end}}
@@ -47,6 +48,7 @@
           {{range .Entries}}
             <tr>
             {{$entry := .}}
+              <td width="20%">{{index $entry "Submitted"}}</td>
             {{range $.Fields}}
               <td>{{index $entry .}}</td>
             {{end}}

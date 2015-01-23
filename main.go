@@ -30,6 +30,11 @@ type Form struct {
 	RedirectURL string
 }
 
+type EntryMeta struct {
+	ID        string
+	Submitted int64
+}
+
 type Message struct {
 	Type string
 	Text string
@@ -399,25 +404,30 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	eids, err := redis.Strings(rc.Do(
-		"SMEMBERS",
+	v, err := redis.Values(rc.Do(
+		"ZREVRANGEBYSCORE",
 		key("form", form.ID, "entries"),
+		"+inf", "-inf", "WITHSCORES",
 	))
-
 	if err != nil {
 		return
 	}
+	ems := make([]EntryMeta, len(v)/2)
+	for i := range ems {
+		v, err = redis.Scan(v, &ems[i].ID, &ems[i].Submitted)
+	}
 
-	for _, eid := range eids {
+	for _, em := range ems {
 		v, err := redis.Strings(
-			rc.Do("HGETALL", key("form", form.ID, "entry", eid)),
+			rc.Do("HGETALL", key("form", form.ID, "entry", em.ID)),
 		)
-
 		if err != nil {
 			return
 		}
 
-		entry := make(map[string]string)
+		entry := map[string]interface{}{
+			"Submitted": time.Unix(em.Submitted, 0).UTC().Format(time.Stamp),
+		}
 		for i := 0; i < len(v); i += 2 {
 			entry[v[i]] = v[i+1]
 		}
@@ -551,7 +561,7 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 	}
 	rc.Do("HMSET", entry...)
 
-	rc.Do("SADD", key("form", form.ID, "entries"), eid)
+	rc.Do("ZADD", key("form", form.ID, "entries"), time.Now().UTC().Unix(), eid)
 
 	http.Redirect(w, req, form.RedirectURL, http.StatusFound)
 }
