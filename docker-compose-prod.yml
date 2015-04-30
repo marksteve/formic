@@ -7,9 +7,7 @@ web:
   links:
     - redis:redis
   ports:
-    - 8000:8000
-  volumes:
-    - .:/go/src/app
+    - 8000
   environment:
     FORMIC_REDIS_HOST: redis
 
