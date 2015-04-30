@@ -36,6 +36,14 @@
 			"Rev": "aa5e036e6c44aec69a32eb41097001978b29ad31"
 		},
 		{
+			"ImportPath": "github.com/mailgun/mailgun-go",
+			"Rev": "e5be78db035a805f70f1c467663b324a3ac41259"
+		},
+		{
+			"ImportPath": "github.com/mbanzon/simplehttp",
+			"Rev": "6894781bc95b6a11c8b4e4a83eedb06c8a0b4536"
+		},
+		{
 			"ImportPath": "github.com/pelletier/go-toml",
 			"Comment": "v0.2.1-14-g36d65b6",
 			"Rev": "36d65b681a9f120e3bf6f8d0586aa5d0e4519b25"

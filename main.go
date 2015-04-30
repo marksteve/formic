@@ -15,6 +15,7 @@ import (
 	"github.com/dustin/randbo"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/sessions"
+	"github.com/mailgun/mailgun-go"
 	"github.com/unrolled/render"
 	"github.com/zenazn/goji"
 	"github.com/zenazn/goji/web"
@@ -25,9 +26,10 @@ import (
 )
 
 type Form struct {
-	ID          string
-	Name        string
-	RedirectURL string
+	ID             string
+	Name           string
+	RedirectURL    string
+	EmailRecepient string
 }
 
 type EntryMeta struct {
@@ -44,11 +46,14 @@ var (
 	r                   *render.Render
 	rp                  *redis.Pool
 	rs                  *redistore.RediStore
+	gun                 mailgun.Mailgun
 	redisHost           = config.String("redis-host", "localhost")
 	sessionSecret       = config.String("session-secret", "")
 	googleClientID      = config.String("google-client-id", "")
 	googleClientSecret  = config.String("google-client-secret", "")
 	googleAllowedEmails = config.String("google-allowed-emails", "")
+	mailgunDomain       = config.String("mailgun-domain", "")
+	mailgunKey          = config.String("mailgun-key", "")
 )
 
 // Utils
@@ -148,7 +153,8 @@ func sessionEnv(c *web.C, h http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, req *http.Request) {
 		session, err := rs.Get(req, "session")
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error getting session: "+err.Error(),
+				http.StatusInternalServerError)
 			return
 		}
 		c.Env["session"] = session
@@ -170,7 +176,7 @@ func login(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	defer func() {
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error logging in: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}()
@@ -254,7 +260,7 @@ func logout(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	defer func() {
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error logging out:"+err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}()
@@ -286,7 +292,7 @@ func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	defer func() {
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error showwing forms: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}()
@@ -316,9 +322,10 @@ func showForms(c web.C, w http.ResponseWriter, req *http.Request) {
 
 func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	var (
-		formName    string
-		redirectURL string
-		err         error
+		formName       string
+		redirectURL    string
+		emailRecepient string
+		err            error
 	)
 
 	session := c.Env["session"].(*sessions.Session)
@@ -339,6 +346,7 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 			"ID", id,
 			"Name", formName,
 			"RedirectURL", redirectURL,
+			"EmailRecepient", emailRecepient,
 		)
 
 		rc.Do("SADD", key(uid, "forms"), id)
@@ -365,6 +373,8 @@ func createForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		err = errors.New("Redirect URL can't be empty")
 		return
 	}
+
+	emailRecepient = req.PostForm.Get("emailRecepient")
 }
 
 func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
@@ -378,7 +388,7 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	defer func() {
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error showing form:"+err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}()
@@ -446,9 +456,10 @@ func showForm(c web.C, w http.ResponseWriter, req *http.Request) {
 
 func updateForm(c web.C, w http.ResponseWriter, req *http.Request) {
 	var (
-		formName    string
-		redirectURL string
-		err         error
+		formName       string
+		redirectURL    string
+		emailRecepient string
+		err            error
 	)
 
 	session := c.Env["session"].(*sessions.Session)
@@ -465,6 +476,7 @@ func updateForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		rc.Do("HMSET", key("form", c.URLParams["id"]),
 			"Name", formName,
 			"RedirectURL", redirectURL,
+			"EmailRecepient", emailRecepient,
 		)
 
 		session.AddFlash("Form updated", "info")
@@ -487,6 +499,8 @@ func updateForm(c web.C, w http.ResponseWriter, req *http.Request) {
 		err = errors.New("Redirect URL can't be empty")
 		return
 	}
+
+	emailRecepient = req.PostForm.Get("emailRecepient")
 }
 
 func deleteForm(c web.C, w http.ResponseWriter, req *http.Request) {
@@ -532,7 +546,7 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 
 	defer func() {
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Error submitting entry: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}()
@@ -555,13 +569,29 @@ func submitEntry(c web.C, w http.ResponseWriter, req *http.Request) {
 	eid := genID()
 
 	entry := []interface{}{key("form", form.ID, "entry", eid)}
+	emailBody := fmt.Sprintf(`%s
+---
+
+`, form.Name)
 	for field := range req.PostForm {
-		entry = append(entry, field, req.PostForm.Get(field))
+		value := req.PostForm.Get(field)
+		entry = append(entry, field, value)
+		emailBody += fmt.Sprintf("%s: %s\n", field, value)
 		rc.Do("SADD", key("form", form.ID, "fields"), field)
 	}
 	rc.Do("HMSET", entry...)
 
 	rc.Do("ZADD", key("form", form.ID, "entries"), time.Now().UTC().Unix(), eid)
+
+	if form.EmailRecepient != "" {
+		m := mailgun.NewMessage(
+			"Formic <formic@marksteve.com>",
+			fmt.Sprintf("[Formic] New entry for %s", form.Name),
+			emailBody,
+			form.EmailRecepient,
+		)
+		gun.Send(m)
+	}
 
 	http.Redirect(w, req, form.RedirectURL, http.StatusFound)
 }
@@ -603,14 +633,23 @@ func init() {
 
 func main() {
 	config.SetPrefix("FORMIC_")
-	config.Parse("formic.toml")
+	err := config.Parse("formic.toml")
+	if err != nil {
+		fmt.Printf(
+			"Invalid config file: %s\n",
+			err.Error(),
+		)
+		os.Exit(1)
+	}
 
 	missingConfig := make([]string, 0)
 	for n, v := range map[string]string{
 		"Session Secret":        *sessionSecret,
 		"Google Client ID":      *googleClientID,
 		"Google Client Secret":  *googleClientSecret,
-		"Google ALlowed Emails": *googleAllowedEmails,
+		"Google Allowed Emails": *googleAllowedEmails,
+		"Mailgun Domain":        *mailgunDomain,
+		"Mailgun API Key":       *mailgunKey,
 	} {
 		if v == "" {
 			missingConfig = append(missingConfig, n)
@@ -623,6 +662,13 @@ func main() {
 		)
 		os.Exit(1)
 	}
+
+	gun = mailgun.NewMailgun(
+		*mailgunDomain,
+		*mailgunKey,
+		"",
+	)
+
 	goji.Get("/", index)
 	goji.Get("/oauth2callback", login)
 	goji.Get("/logout", logout)
